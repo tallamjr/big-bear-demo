@@ -12,6 +12,7 @@
 * [Here Come the Hotstepper: `cuDF`](#here-come-the-hotstepper-cudf)
   * [Pure `cuDF`](#pure-cudf)
 * [**Key Takeaways**](#key-takeaways)
+* [Troubleshooting](#troubleshooting)
 
 <!-- mtoc-end -->
 
@@ -549,3 +550,75 @@ query plan and therefore eagerly loading data into VRAM.
 | **Top pickup locations**   | GroupBy pushdown, column pruning |
 | **Daily revenue for 2016** | Date filtering pushdown          |
 | **Find longest trips**     | Filter + sort optimisation       |
+
+## Troubleshooting
+
+```bash
+polars.exceptions.ComputeError: RuntimeError: Unable to open file: Too many open files
+```
+
+This error usually indicates that your operating system is running out of
+available file descriptors because too many files are open simultaneously. This
+is not surprising considering we have:
+
+```console
+ls data/nyc_yellow_taxi_parquet/* | wc
+2222
+```
+
+So, here are some steps you can take:
+
+1. **Increase the File Descriptor Limit:** On Unix-based systems, you can check
+   your current limit with the command `ulimit -n`. If it’s too low, you can
+   increase it (for example, to 4096) by running `ulimit -n 4096` in your shell or
+   by updating your system configuration (e.g. editing
+   `/etc/security/limits.conf`). In Python, you might also adjust it
+   programmatically using the `resource` module:
+
+   ```python
+   import resource
+
+   soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+   resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
+   ```
+
+2. **Optimise File Handling:** If you’re reading many small Parquet files with
+   Polars, consider merging them into fewer files before processing. This
+   reduces the number of files that need to be opened concurrently.
+
+3. **Review Lazy Loading and Query Patterns:** Since Polars uses lazy
+   evaluation, ensure that your query operations are structured in a way that
+   doesn’t require opening all files at once. If possible, trigger operations in
+   batches or use streaming modes if available.
+
+---
+
+```bash
+NVIDIA GPU detected, using cuDF for GPU acceleration.
+Traceback (most recent call last):
+  File "/home/tarek/big-bear-demo/src/cudf.py", line 3, in <module>
+    import cudf
+  File "/home/tarek/big-bear-demo/src/cudf.py", line 29, in <module>
+    dfs = [cudf.read_parquet(f) for f in files]
+  File "/home/tarek/big-bear-demo/src/cudf.py", line 29, in <listcomp>
+    dfs = [cudf.read_parquet(f) for f in files]
+AttributeError: partially initialized module 'cudf' has no attribute 'read_parquet' (most likely due to a circular import)
+```
+
+The error indicates that Python is trying to import your file as the cuDF
+module. In your case, your file is named exactly "cudf.py", which causes a
+circular import because when you write `import cudf`, Python imports your file
+(or a partially initialised version of it) instead of the actual NVIDIA RAPIDS
+cuDF package.
+
+To fix this issue, simply rename your file to something else (e.g.,
+`cudf_example.py` or any other name that doesn't clash with the module name).
+Then remove any cached files like `cudf.pyc` or the `__pycache__` folder.
+
+Once you've done this, your import should work as expected, and you'll be able
+to access `cudf.read_parquet` and other cuDF functions.
+
+Remember, file naming is important in Python to avoid such circular
+dependencies.
+
+---

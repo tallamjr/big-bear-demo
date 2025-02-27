@@ -1,6 +1,11 @@
-import subprocess
 import glob
+import resource
+import subprocess
+
 import cudf
+
+soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
 
 
 def is_nvidia_gpu_available():

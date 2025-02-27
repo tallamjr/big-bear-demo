@@ -1,8 +1,12 @@
+import resource
 import subprocess
 from datetime import datetime
 from pprint import pprint
 
 import polars as pl
+
+soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
 
 
 def is_nvidia_gpu_available():
