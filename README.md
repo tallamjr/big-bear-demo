@@ -1,12 +1,29 @@
 # 🐻‍❄️ A Polar Bear Showcase
 
+<!-- mtoc-start -->
+
+* [Overview](#overview)
+  * [**1. Count Rows Efficiently (Full Dataset Scan)**](#1-count-rows-efficiently-full-dataset-scan)
+  * [**2. Find the Most Popular Pickup Locations**](#2-find-the-most-popular-pickup-locations)
+  * [**3. Compute Daily Total Revenue (But Only for 2016)**](#3-compute-daily-total-revenue-but-only-for-2016)
+  * [**4. Find the Longest Taxi Trips (Optimised Distance Query)**](#4-find-the-longest-taxi-trips-optimised-distance-query)
+  * [**5. Query Plans in Detail**](#5-query-plans-in-detail)
+    * [What This Query Demonstrates](#what-this-query-demonstrates)
+* [Here Come the Hotstepper: `cuDF`](#here-come-the-hotstepper-cudf)
+  * [Pure `cuDF`](#pure-cudf)
+* [**Key Takeaways**](#key-takeaways)
+
+<!-- mtoc-end -->
+
+## Overview
+
 Not too long ago Data Scientist was dubbed the sexiest job title of the decade
 and it seems like from the early 2010s there has been a nice DataFrame library
 hit the scene every other year.
 
-While "Data Science" and the now ubiqtuous "DataFrame" (think table of data,
+While "Data Science" and the now ubiquitous "DataFrame" (think table of data,
 maybe the dreaded excel spreadsheet comes to mind) might be in their infancy,
-relational database research, i.e. that essentially deals with tabular data is
+relational database research, i.e. that essentially deals with tabular data, is
 very mature.
 
 In 2012 `pandas` shot to fame with a easy Pythonic way to manipulate and handle
@@ -16,17 +33,17 @@ manipulate "large" datasets was now available to anyone who a bit of Python. I
 am intentionally ignoring all statistics people who use R because well .. I am
 
 The trouble was that these new kids on the block with their shiny data science
-tools largely ignored the glorious database research that came before. And can
-you blame them, they just wanted to get on with visualising how many pople in
-2nd class survived the Titantic incident.
+tools largely ignored the glorious database research that came before. And can't
+you blame them, they just wanted to get on with visualising how many people in
+2nd class survived the Titantic incident among other things.
 
 Over the years the bifurcation continued with DataFrame libraries working with
-data that could be processed in memory but what happens when you have some
+data that could be processed in memory, but what happens when you have some
 serious big data or worse yet and super complex join of two tables.
 
-Well, what you would do is naively bring everything into memory and hope that your
-large outer-product cross join can also fit in memory. But _it need-not be this
-way John!_
+Well, what you would do is naively bring everything into memory and hope that
+your large outer-product cross join intermediate computations can also fit in
+memory. But _it need-not be this way John!_
 
 Projects like Apache Spark were one of the few libraries that took database
 research seriously and put a lot of effort into understanding how best to create
@@ -34,14 +51,14 @@ a Query Plan and Query optimiser.
 
 <!-- TODO: A more detailed history lesson will follow but let's get on with the show. -->
 
-To showcase **Polars' lazy execution, query planning, and optimisation** we will
+To showcase Polars' **lazy execution, query planning, and optimisation** we will
 look at the **50GB NYC Taxi dataset (~1.5 billion rows)** and present how to
 efficiently query a larger than RAM dataset on a **32GB RAM laptop**.
 
 For this we will:
 
 - **Leverage lazy execution** (`pl.scan_parquet()`) instead of eager loading
-  (`pl.read_parquet()`)
+  everything into memory.
 - **Push down predicates** to filter data **before** loading it into memory
 - **Avoid unnecessary computations** through **query optimisations** like column
   projection
@@ -56,19 +73,77 @@ compare results with running on GPU which would require one to run
 
 Let's first look at counting rows, all 1.5 _billion_ of them! 👀
 
-- Instead of materialising the dataset in memory, **Polars will scan metadata**
+- Instead of materialising the dataset in memory, `polars` will _scan_ metadata
   to count rows efficiently.
 
 ```python
 import polars as pl
 
 # Lazy load the Parquet file (does NOT load into memory)
-df = pl.scan_parquet("nyc_taxi_faker.parquet")
+df = pl.scan_parquet("../data/nyc_yellow_taxi_parquet/*")
 
 # Count total rows without loading the full dataset
-row_count = df.select(pl.count()).collect()
+row_count = df.select(pl.len()).collect(**collect_args)
 
 print(row_count)
+```
+
+```python
+
+shape: (1, 1)
+┌────────────┐
+│ len        │
+│ ---        │
+│ u32        │
+╞════════════╡
+│ 1571671152 │
+└────────────┘
+```
+
+I've put the schema and a look at the first few rows to get us aquietad to the
+data.
+
+```python
+Schema([('vendorID', String),
+        ('tpepPickupDateTime', Datetime(time_unit='ns', time_zone=None)),
+        ('tpepDropoffDateTime', Datetime(time_unit='ns', time_zone=None)),
+        ('passengerCount', Int32),
+        ('tripDistance', Float64),
+        ('puLocationId', String),
+        ('doLocationId', String),
+        ('startLon', Float64),
+        ('startLat', Float64),
+        ('endLon', Float64),
+        ('endLat', Float64),
+        ('rateCodeId', Int32),
+        ('storeAndFwdFlag', String),
+        ('paymentType', String),
+        ('fareAmount', Float64),
+        ('extra', Float64),
+        ('mtaTax', Float64),
+        ('improvementSurcharge', String),
+        ('tipAmount', Float64),
+        ('tollsAmount', Float64),
+        ('totalAmount', Float64)])
+
+shape: (10, 21)
+┌──────────┬─────────────────────┬─────────────────────┬────────────────┬───┬──────────────────────┬───────────┬─────────────┬─────────────┐
+│ vendorID ┆ tpepPickupDateTime  ┆ tpepDropoffDateTime ┆ passengerCount ┆ … ┆ improvementSurcharge ┆ tipAmount ┆ tollsAmount ┆ totalAmount │
+│ ---      ┆ ---                 ┆ ---                 ┆ ---            ┆   ┆ ---                  ┆ ---       ┆ ---         ┆ ---         │
+│ str      ┆ datetime[ns]        ┆ datetime[ns]        ┆ i32            ┆   ┆ str                  ┆ f64       ┆ f64         ┆ f64         │
+╞══════════╪═════════════════════╪═════════════════════╪════════════════╪═══╪══════════════════════╪═══════════╪═════════════╪═════════════╡
+│ 2        ┆ 2002-12-31 23:58:47 ┆ 2003-01-01 00:09:49 ┆ 1              ┆ … ┆ 0.3                  ┆ 0.0       ┆ 0.0         ┆ 9.3         │
+│ 2        ┆ 2002-12-31 23:04:50 ┆ 2003-01-01 06:42:58 ┆ 2              ┆ … ┆ 0.3                  ┆ 0.0       ┆ 0.0         ┆ 13.8        │
+│ CMT      ┆ 2009-04-30 23:50:17 ┆ 2009-05-01 01:13:28 ┆ 1              ┆ … ┆ null                 ┆ 20.0      ┆ 0.0         ┆ 160.0       │
+│ CMT      ┆ 2009-04-30 23:56:20 ┆ 2009-05-01 00:16:47 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 14.5        │
+│ VTS      ┆ 2009-04-30 23:57:00 ┆ 2009-05-01 00:16:00 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 23.8        │
+│ VTS      ┆ 2009-04-30 23:59:00 ┆ 2009-05-01 00:12:00 ┆ 2              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 13.4        │
+│ VTS      ┆ 2009-04-30 23:42:00 ┆ 2009-05-01 00:20:00 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 25.4        │
+│ CMT      ┆ 2009-04-30 23:43:07 ┆ 2009-05-01 00:02:41 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 4.15        ┆ 32.25       │
+│ VTS      ┆ 2009-04-30 23:56:00 ┆ 2009-05-01 00:13:00 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 16.2        │
+│ CMT      ┆ 2009-04-30 23:53:00 ┆ 2009-05-01 00:27:11 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 22.9        │
+└──────────┴─────────────────────┴─────────────────────┴────────────────┴───┴──────────────────────┴───────────┴─────────────┴─────────────┘
+
 ```
 
 **Why is this fast?**
@@ -83,15 +158,14 @@ print(row_count)
 - Using **groupby & aggregation** on the entire dataset but **only returning the top 10 results**.
 
 ```python
-df = pl.scan_parquet("nyc_taxi_faker.parquet")
-
 # Group by pickup location and count occurrences
 popular_pickups = (
-    df.group_by("PULocationID")
-    .agg(pl.count().alias("num_trips"))
+    df.filter(pl.col("puLocationId").is_not_null())
+    .group_by("puLocationId")
+    .agg(pl.len().alias("num_trips"))
     .sort("num_trips", descending=True)
-    .limit(10)  # Only return the top 10
-    .collect()
+    .limit(10)
+    .collect(**collect_args)
 )
 
 print(popular_pickups)
@@ -109,15 +183,18 @@ print(popular_pickups)
 ```python
 from datetime import datetime
 
-df = pl.scan_parquet("nyc_taxi_faker.parquet")
-
-# Filter for 2023 only and compute daily total fares
+# Filter for 2016 only and compute daily total fares
 daily_revenue = (
-    df.filter(pl.col("tpep_pickup_datetime").is_between(datetime(2023, 1, 1), datetime(2023, 12, 31)))
-    .group_by(pl.col("tpep_pickup_datetime").dt.date())  # Aggregate per day
-    .agg(pl.sum("fare_amount").alias("total_fare"))
-    .sort("tpep_pickup_datetime")  # Ensure results are ordered
-    .collect()
+    df.filter(
+        pl.col("tpepPickupDateTime").is_between(
+            datetime(2016, 1, 1), datetime(2016, 12, 31)
+        )
+    )
+    .with_columns(pl.col("tpepPickupDateTime").dt.date().alias("date"))
+    .group_by("date")
+    .agg(pl.sum("fareAmount").alias("total_fare"))
+    .sort("date")
+    .collect(**collect_args)
 )
 
 print(daily_revenue)
@@ -135,15 +212,13 @@ print(daily_revenue)
 - **Filtering + Sorting on large dataset**.
 
 ```python
-df = pl.scan_parquet("nyc_taxi_faker.parquet")
-
 # Filter for trips longer than 50 miles, sorted by distance
 longest_trips = (
-    df.filter(pl.col("trip_distance") > 50)
-    .select(["trip_distance", "fare_amount", "PULocationID", "DOLocationID"])
-    .sort("trip_distance", descending=True)
+    df.filter(pl.col("tripDistance") > 50)
+    .select(["tripDistance", "fareAmount"])
+    .sort("tripDistance", descending=True)
     .limit(10)
-    .collect()
+    .collect(**collect_args)
 )
 
 print(longest_trips)
@@ -154,27 +229,18 @@ print(longest_trips)
 - **Predicate Pushdown:** Only trips with `trip_distance > 50` are processed.
 - **Column Projection:** Only four columns are read instead of all.
 
-### **Key Takeaways**
-
-| Query Type                           | Polars Optimisation Used         |
-| ------------------------------------ | -------------------------------- |
-| **Count total rows**                 | Metadata scan, no full load      |
-| **Top pickup locations**             | GroupBy pushdown, column pruning |
-| **Daily revenue for 2023**           | Date filtering pushdown          |
-| **Find longest trips**               | Filter + sort optimisation       |
-| **Extract coordinates from GeoJSON** | Lazy evaluation of JSON          |
-
 With these queries, you can **scan 1.5 billion rows efficiently** and **return
-small, meaningful results** while keeping memory usage low!
+small, meaningful results** while keeping memory usage low! Cool right!?
 
-So we talked a lot about query optimisation and planning but perhaps this is
-still not appreciated.
+Before going further let's step back a bit. We talked a lot about query
+optimisation and planning but perhaps this is still not appreciated.
 
 Query optimisation and planning often involves doing "predicate pushdown" and
 "projection pushdown". If some of you are like me you might be asking what on
-earth is the difference -- well an awesome explanation can be found here.
+earth is the difference -- well an awesome explanation can be found [here](https://stackoverflow.com/questions/58235076/what-is-the-difference-between-predicate-pushdown-and-projection-pushdown)
 
-So, in a nutshell, re-arrange the query so we touch as little data as necessary!
+Which essentially says, re-arrange the query so we touch as little data as
+necessary! Let's have a closer look with the next example.
 
 ### **5. Query Plans in Detail**
 
@@ -183,27 +249,9 @@ we can get more of a feel for what is going on if we inspect the query with
 `df.explain()`. Here we show a much more complex query that does many different
 filtering operations and aggregations.
 
-It leverages Polars’ lazy evaluation, predicate
-pushdown, column projection, and streaming mode. This query assumes you’re
-working with a 1.5 billion-row NYC Yellow Taxi dataset (using the provided
-schema) and aims to demonstrate several advanced operations in one go.
-
-#### What This Query Demonstrates
-
-- **Predicate Pushdown & Column Projection:** The filters on
-  **tpepPickupDateTime**, **startLat**, **startLon**, and **puLocationId** are
-  pushed down to the data source. This means Polars only loads the row groups that
-  could possibly match these conditions—vital when dealing with billions of rows.
-
-- **Lazy Evaluation & Streaming:** By using `pl.scan_parquet(...,
-streaming=True)` and deferring execution until the final `.collect()`, the query
-  planner optimises the entire operation, ensuring minimal memory usage even on a
-  laptop with 32 GB of RAM.
-
-- **Complex Aggregation & Derived Metrics:** The query computes additional
-  columns (trip duration, average speed) and applies further filtering on these
-  derived values. Then, grouping by date and payment type demonstrates the power
-  of Polars’ parallel aggregations over massive datasets.
+It leverages `polars`’ lazy evaluation, predicate pushdown, column projection, and
+streaming mode. Working with the same dataset as before we will chain several
+advanced operations in one go.
 
 ```python
 # Define a bounding box for NYC (approximate)
@@ -264,10 +312,27 @@ result = (
 
 ```
 
-I encourage the reader to checkout the large query in detail, but the main thing
-is to inspect to two different query plan graphs, the first being an
-**un-optimised query plan** and then followed by the **optimised query plan**
-version -- do you spot a difference?
+#### What This Query Demonstrates
+
+- **Predicate Pushdown & Column Projection:** The filters on
+  **tpepPickupDateTime**, **startLat**, **startLon**, and **puLocationId** are
+  pushed down to the data source. This means Polars only loads the row groups that
+  could possibly match these conditions—vital when dealing with billions of rows.
+
+- **Lazy Evaluation & Streaming:** By using `pl.scan_parquet(...,
+streaming=True)` and deferring execution until the final `.collect()`, the query
+  planner optimises the entire operation, ensuring minimal memory usage even on a
+  laptop with 32 GB of RAM.
+
+- **Complex Aggregation & Derived Metrics:** The query computes additional
+  columns (trip duration, average speed) and applies further filtering on these
+  derived values. Then, grouping by date and payment type demonstrates the power
+  of Polars’ parallel aggregations over massive datasets.
+
+I encourage the reader to go over and play with it by removing filters but for
+now the main thing is to inspect to two different query plan graphs, the first
+being an **un-optimised query plan** and then followed by the **optimised query
+plan** version -- do you spot a difference?
 
 **1. Un-optimised**
 
@@ -339,13 +404,14 @@ mean?_
 Each line represents a computation on an intermediate set of data. This is
 particularly apparent with these lines from the unoptimised version:
 
-```bash
+```diff
 ...
-  FILTER [(col("startLat")) >= (40.5)] FROM
-    FILTER [(col("startLat")) <= (40.9)] FROM
-      FILTER [(col("startLon")) >= (-74.25)] FROM
-        FILTER [(col("startLon")) <= (-73.7)] FROM
-          FILTER col("tpepPickupDateTime").strict_cast(Datetime(Microseconds, None)).is_between([2010-01-01 00:00:00, 2018-01-01 00:00:00]) FROM
+-  FILTER [(col("startLat")) >= (40.5)] FROM
+-    FILTER [(col("startLat")) <= (40.9)] FROM
+-      FILTER [(col("startLon")) >= (-74.25)] FROM
+-        FILTER [(col("startLon")) <= (-73.7)] FROM
+-          FILTER col("tpepPickupDateTime").strict_cast(Datetime(Microseconds, None)).is_between([2010-01-01 00:00:00, 2018-01-01 00:00:00]) FROM
++ SELECTION: [([([([(col("fareAmount")) < (150.0)]) & ([([(col("startLat")) <= (40.9)]) & ([(col("startLat")) >= (40.5)])])]) & ([([(col("startLon")) <= (-73.7)]) & ([(col("startLon")) >= (-74.25)])])]) & (col("tpepPickupDateTime").strict_cast(Datetime(Microseconds, None)).is_between([2010-01-01 00:00:00, 2018-01-01 00:00:00]))]
 ..
 ```
 
@@ -376,27 +442,47 @@ sys     0m56.340s
 ```
 
 So, long story short, a query optimiser is key in efficient processing of big
-data!
+data! `polars` applies several types of optimizations,
+including:
 
-## `cuDF`
+- Predicate pushdown: Applies filters as early as possible, often at the scan
+  level.
+- Projection pushdown: Selects only the necessary columns at the scan level.
+- Slice pushdown: Only loads the required slice from the scan level.
+- Common subplan elimination: Caches subtrees/file scans used by multiple
+  subtrees in the query plan.
+- Simplify expressions: Performs various optimizations like constant folding and
+  replacing expensive operations with faster alternatives.
+- Join ordering: Estimates which branches of joins should be executed first to
+  reduce memory pressure.
+- Type coercion: Coerces types for successful operations and minimal memory
+  usage.
+- Cardinality estimation: Estimates cardinality to determine the optimal
+  group-by strategy.
+
+Some optimizations run once, while others run multiple times until a fixed point
+is reached. For example, predicate pushdown runs once, while simplify
+expressions runs until a fixed point is reached.
+
+## Here Come the Hotstepper: `cuDF`
 
 Yeah Ok, that's cool and all but doesn't that all go about the window when I
-have a beefy GPU sitting here.
+have a beefy GPU sitting here?
 
 Well, the go-to DataFrame library at the moment for running queries is `cuDF`
 developed by the RAPIDS team at NVIDIA[^1].
 
-The main issue with `cuDF` even though it is indeed blazingly fast and allows
+The main issue with `cuDF` even though it is indeed _blazingly_ fast and allows
 for massive parallelism, it **does not** have an inbuilt optimiser or query
 planner. So this means to run queries require the **full** dataset to be brought
 into VRAM.
 
-Now with what we saw above, that just seems silly.
+Now with what we saw above, that just seems silly not to have one right?
 
 [^1]: We are only really considering NVIDIA chips, for reasons. Good reasons.
 
 `cuDF` is primarily designed for eager execution—much like `pandas`, but on the
-GPU, so it doesn't include a built‑in lazy query planning engine like Polars
+GPU, so it doesn't include a built‑in lazy query planning engine like `polars`
 does. Instead, `cuDF`’s optimisations come from highly optimised GPU kernels and
 vectorised operations that execute immediately.
 
@@ -419,8 +505,6 @@ can leverage `polars` query planning and optimisations and also the
 computational brute force of a GPU. By clever construction of our query we
 minimise data movement and also the amount that has to sit on the GPU at all.
 
-<!-- TODO: Rewrite below -->
-
 It's worth noting that `collect()` offers several parameters to control the execution:
 
 - You can enable streaming mode with `streaming=True` to process the query in
@@ -436,199 +520,33 @@ result = lf.collect(streaming=True, engine="cpu")
 ```
 
 Remember that the GPU engine and streaming mode are considered unstable features
-[Api > Python > Stable > Reference > Lazyframe > Api >
-polars.LazyFrame.collect](<[https://docs.pola.rs/api/python/stable/reference/lazyframe/api/polars.LazyFrame.collect.html](https://docs.pola.rs/api/python/stable/reference/lazyframe/api/polars.LazyFrame.collect.html)>).
 
-Based on the knowledge sources provided, I can explain predicate pushdown in
-Polars and its relation to GPU features. However, it's important to note that
-the information about GPU usage with predicate pushdown is limited in the given
-sources.
+But, running on an **NVIDIA 4090 with 24GB VRAM GPU** we can still run all
+queires and crucially we run `src/main.py` in... _drum roll please_ 🥁
 
-Predicate pushdown is an optimization technique used in Polars to improve query
-performance. It involves moving filter conditions (predicates) as close as
-possible to the data source in the query execution plan. This optimization helps
-reduce the amount of data that needs to be processed in subsequent steps of the
-query.
-
-Here's an example of how predicate pushdown works in Polars:
-
-```python
-q1 = (
-    pl.scan_csv("docs/assets/data/reddit.csv")
-    .with_columns(pl.col("name").str.to_uppercase())
-    .filter(pl.col("comment_karma") > 0)
-)
-
-q1.explain()
-```
-
-The optimized query plan output shows:
+```console
 
 ```
- WITH_COLUMNS:
- [col("name").str.uppercase()]
 
-    CSV SCAN data/reddit.csv
-    PROJECT */6 COLUMNS
-    SELECTION: [(col("comment_karma")) > (0)]
-```
+### Pure `cuDF`
 
-In this case, the query optimizer has pushed down the filter condition
-`(col("comment_karma")) > (0)` to be applied while the CSV is being read, rather
-than reading the entire file into memory and then applying the filter
-[User-guide > Lazy > Query
-plan](<[https://docs.pola.rs/user-guide/lazy/query-plan/#query-plan](https://docs.pola.rs/user-guide/lazy/query-plan/#query-plan)>).
+For completeness I used ChatGPT to rewrite the `polars` queires in `src/main.py`
+to be "pure" `cuDF` which can be found in `src/cudf.py`. Running that file on
+the GPU box we get:
 
-Regarding GPU usage, Polars does offer a GPU engine option. However, the
-knowledge sources don't provide specific information about how predicate
-pushdown interacts with GPU processing. When using the GPU engine, you can
-specify it in the `collect()` method:
-
-```python
-df = lf.collect(engine="gpu")
-```
-
-It's worth noting that GPU mode is considered unstable, and not all queries will
-run successfully on the GPU. However, they should fall back transparently to the
-default engine if execution is not supported on the GPU [Api > Python > Stable >
-Reference > Lazyframe > Api >
-polars.LazyFrame.collect](<[https://docs.pola.rs/api/python/stable/reference/lazyframe/api/polars.LazyFrame.collect.html](https://docs.pola.rs/api/python/stable/reference/lazyframe/api/polars.LazyFrame.collect.html)>).
-
-To get more detailed information about how a query is optimized and whether it
-can use GPU processing, you can use the `explain()` method on a LazyFrame.
-
-Polars employs a sophisticated query planning and optimization system as part of
-its lazy evaluation strategy. This system is designed to improve query
-performance and efficiency. Here's an overview of how Polars handles query
-planning and optimization:
-
-1.  Lazy Evaluation: Polars uses lazy evaluation, which means that when you
-    define a query, it doesn't immediately execute. Instead, it builds a query
-    plan. This plan is only executed when you call methods like `collect()` or
-    `fetch()` [User-guide > Concepts > Lazy
-    API](<[https://docs.pola.rs/user-guide/concepts/lazy-api/#lazy-api](https://docs.pola.rs/user-guide/concepts/lazy-api/#lazy-api)>).
-
-1.  Query Optimizer: When you execute a lazy query, Polars runs it through a
-    query optimizer. This optimizer analyzes the entire query plan and applies
-    various optimizations to make the query more efficient [User-guide > Lazy >
-    Optimizations](<[https://docs.pola.rs/user-guide/lazy/optimizations/#optimizations](https://docs.pola.rs/user-guide/lazy/optimizations/#optimizations)>).
-
-1.  Types of Optimizations: Polars applies several types of optimizations,
-    including:
-
-        * Predicate pushdown: Applies filters as early as possible, often at the
-          scan level.
-        * Projection pushdown: Selects only the necessary columns at the scan
-          level.
-        * Slice pushdown: Only loads the required slice from the scan level.
-        * Common subplan elimination: Caches subtrees/file scans used by
-          multiple subtrees in the query plan.
-        * Simplify expressions: Performs various optimizations like constant
-          folding and replacing expensive operations with faster alternatives.
-        * Join ordering: Estimates which branches of joins should be executed
-          first to reduce memory pressure.
-        * Type coercion: Coerces types for successful operations and minimal
-          memory usage.
-        * Cardinality estimation: Estimates cardinality to determine the optimal
-          group-by strategy.
-
-[User-guide > Lazy >
-Optimizations](https://docs.pola.rs/use[r-guide/lazy/optimizations/#optimizations)
-
-](https://docs.pola.rs/user-guide/lazy/optimizations/#optimizations)1.
-[Optimization
-Frequ](https://docs.pola.rs/user-guide/lazy/optimizations/#optimizations)ency:
-Some optimizations run once, while others run multiple times until a fixed point
-is reached. For example, predicate pushdown runs once, while simplify
-expressions runs until a fixed point is reached.
-
-1.  Visualizing and Explaining Query Plans: Polars provides tools to visualize
-    and explain query plans:
-
-            * `show_graph()`: Creates a Graphviz visualization of the query plan.
-            * `explain()`: Prints a text representation of the query plan.
-
-These tools can show both the non-optimized and optimized query plans
-[User-guide > Lazy > Query
-plan](https://docs.pola.rs/user-guid[e/lazy/query-plan/#query-plan).
-
-](https://docs.pola.rs/user-guide/lazy/query-plan/#query-plan)1.
-[Example:](https://docs.pola.rs/user-guide/lazy/query-plan/#query-plan) [Here's
-an exam](https://docs.pola.rs/user-guide/lazy/query-plan/#query-plan)ple of how
-you can see the optimized query plan:
-
-```python
-q1 = (
-    pl.scan_csv("docs/assets/data/reddit.csv")
-    .with_columns(pl.col("name").str.to_uppercase())
-    .filter(pl.col("comment_karma") > 0)
-)
-
-print(q1.explain())
-```
-
-This might output:
+```console
 
 ```
- WITH_COLUMNS:
- [col("name").str.uppercase()]
 
-    CSV SCAN data/reddit.csv
-    PROJECT */6 COLUMNS
-    SELECTION: [(col("comment_karma")) > (0)]
-```
+This was to be expected since we are doing no optimisations in terms of the
+query plan and therefore eagerly loading data into VRAM.
 
-This optimized plan shows that the filter has been pushed down to the CSV scan level [User-guide > Lazy > Query plan](https://docs.pola.rs/user-guid[e/lazy/query-plan/#query-plan).
+## **Key Takeaways**
 
-By leveraging these query ](https://docs.pola.rs/user-guide/lazy/query-plan/#query-plan)planning and optimization techniques, Polars can significantly improve query performance, especially for complex queries on large datasets.
-
-```python
-
-shape: (1, 1)
-┌────────────┐
-│ len        │
-│ ---        │
-│ u32        │
-╞════════════╡
-│ 1571671152 │
-└────────────┘
-Schema([('vendorID', String),
-        ('tpepPickupDateTime', Datetime(time_unit='ns', time_zone=None)),
-        ('tpepDropoffDateTime', Datetime(time_unit='ns', time_zone=None)),
-        ('passengerCount', Int32),
-        ('tripDistance', Float64),
-        ('puLocationId', String),
-        ('doLocationId', String),
-        ('startLon', Float64),
-        ('startLat', Float64),
-        ('endLon', Float64),
-        ('endLat', Float64),
-        ('rateCodeId', Int32),
-        ('storeAndFwdFlag', String),
-        ('paymentType', String),
-        ('fareAmount', Float64),
-        ('extra', Float64),
-        ('mtaTax', Float64),
-        ('improvementSurcharge', String),
-        ('tipAmount', Float64),
-        ('tollsAmount', Float64),
-        ('totalAmount', Float64)])
-shape: (10, 21)
-┌──────────┬─────────────────────┬─────────────────────┬────────────────┬───┬──────────────────────┬───────────┬─────────────┬─────────────┐
-│ vendorID ┆ tpepPickupDateTime  ┆ tpepDropoffDateTime ┆ passengerCount ┆ … ┆ improvementSurcharge ┆ tipAmount ┆ tollsAmount ┆ totalAmount │
-│ ---      ┆ ---                 ┆ ---                 ┆ ---            ┆   ┆ ---                  ┆ ---       ┆ ---         ┆ ---         │
-│ str      ┆ datetime[ns]        ┆ datetime[ns]        ┆ i32            ┆   ┆ str                  ┆ f64       ┆ f64         ┆ f64         │
-╞══════════╪═════════════════════╪═════════════════════╪════════════════╪═══╪══════════════════════╪═══════════╪═════════════╪═════════════╡
-│ 2        ┆ 2002-12-31 23:58:47 ┆ 2003-01-01 00:09:49 ┆ 1              ┆ … ┆ 0.3                  ┆ 0.0       ┆ 0.0         ┆ 9.3         │
-│ 2        ┆ 2002-12-31 23:04:50 ┆ 2003-01-01 06:42:58 ┆ 2              ┆ … ┆ 0.3                  ┆ 0.0       ┆ 0.0         ┆ 13.8        │
-│ CMT      ┆ 2009-04-30 23:50:17 ┆ 2009-05-01 01:13:28 ┆ 1              ┆ … ┆ null                 ┆ 20.0      ┆ 0.0         ┆ 160.0       │
-│ CMT      ┆ 2009-04-30 23:56:20 ┆ 2009-05-01 00:16:47 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 14.5        │
-│ VTS      ┆ 2009-04-30 23:57:00 ┆ 2009-05-01 00:16:00 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 23.8        │
-│ VTS      ┆ 2009-04-30 23:59:00 ┆ 2009-05-01 00:12:00 ┆ 2              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 13.4        │
-│ VTS      ┆ 2009-04-30 23:42:00 ┆ 2009-05-01 00:20:00 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 25.4        │
-│ CMT      ┆ 2009-04-30 23:43:07 ┆ 2009-05-01 00:02:41 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 4.15        ┆ 32.25       │
-│ VTS      ┆ 2009-04-30 23:56:00 ┆ 2009-05-01 00:13:00 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 16.2        │
-│ CMT      ┆ 2009-04-30 23:53:00 ┆ 2009-05-01 00:27:11 ┆ 1              ┆ … ┆ null                 ┆ 0.0       ┆ 0.0         ┆ 22.9        │
-└──────────┴─────────────────────┴─────────────────────┴────────────────┴───┴──────────────────────┴───────────┴─────────────┴─────────────┘
-
-```
+| Query Type                           | Polars Optimisation Used         |
+| ------------------------------------ | -------------------------------- |
+| **Count total rows**                 | Metadata scan, no full load      |
+| **Top pickup locations**             | GroupBy pushdown, column pruning |
+| **Daily revenue for 2023**           | Date filtering pushdown          |
+| **Find longest trips**               | Filter + sort optimisation       |
+| **Extract coordinates from GeoJSON** | Lazy evaluation of JSON          |
