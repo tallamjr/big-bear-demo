@@ -543,10 +543,9 @@ query plan and therefore eagerly loading data into VRAM.
 
 ## **Key Takeaways**
 
-| Query Type                           | Polars Optimisation Used         |
-| ------------------------------------ | -------------------------------- |
-| **Count total rows**                 | Metadata scan, no full load      |
-| **Top pickup locations**             | GroupBy pushdown, column pruning |
-| **Daily revenue for 2023**           | Date filtering pushdown          |
-| **Find longest trips**               | Filter + sort optimisation       |
-| **Extract coordinates from GeoJSON** | Lazy evaluation of JSON          |
+| Query Type                 | Polars Optimisation Used         |
+| -------------------------- | -------------------------------- |
+| **Count total rows**       | Metadata scan, no full load      |
+| **Top pickup locations**   | GroupBy pushdown, column pruning |
+| **Daily revenue for 2016** | Date filtering pushdown          |
+| **Find longest trips**     | Filter + sort optimisation       |
