@@ -1,2 +1,3 @@
 polars
 graphviz
+azure-storage-blob
