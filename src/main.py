@@ -1,13 +1,34 @@
+import subprocess
 from datetime import datetime
 from pprint import pprint
 
 import polars as pl
 
+
+def is_nvidia_gpu_available():
+    try:
+        subprocess.run(
+            ["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+# Set up collection arguments based on GPU availability
+collect_args = {}
+if is_nvidia_gpu_available():
+    collect_args["engine"] = "gpu"
+    print("NVIDIA GPU detected, using GPU engine for collection.")
+else:
+    collect_args["streaming"] = True
+    print("No NVIDIA GPU detected, using streaming mode for collection.")
+
 # Lazy load the Parquet file (does NOT load into memory)
 df = pl.scan_parquet("../data/nyc_yellow_taxi_parquet/*")
 #
 # Count total rows without loading the full dataset
-row_count = df.select(pl.len()).collect()
+row_count = df.select(pl.len()).collect(**collect_args)
 
 print(row_count)
 
@@ -34,7 +55,7 @@ pprint(df.collect_schema())
 #         ('tollsAmount', Float64),
 #         ('totalAmount', Float64)])
 
-print(df.limit(10).collect(streaming=True))
+print(df.limit(10).collect(**collect_args))
 
 # Group by pickup location and count occurrences
 popular_pickups = (
@@ -43,7 +64,7 @@ popular_pickups = (
     .agg(pl.len().alias("num_trips"))
     .sort("num_trips", descending=True)
     .limit(10)
-    .collect(streaming=True)
+    .collect(**collect_args)
 )
 
 print(popular_pickups)
@@ -59,7 +80,7 @@ daily_revenue = (
     .group_by("date")
     .agg(pl.sum("fareAmount").alias("total_fare"))
     .sort("date")
-    .collect()
+    .collect(**collect_args)
 )
 
 print(daily_revenue)
@@ -70,7 +91,7 @@ longest_trips = (
     .select(["tripDistance", "fareAmount"])
     .sort("tripDistance", descending=True)
     .limit(10)
-    .collect(streaming=True)
+    .collect(**collect_args)
 )
 
 print(longest_trips)
@@ -140,7 +161,7 @@ print(f"OPTIMIZED Q-PLAN:\n {qplan}")
 
 result.show_graph(show=False, output_path="query-plan.png")
 
-print(result.collect(streaming=True))
+print(result.collect(**collect_args))
 
 # print(
 #     df.filter(pl.col("puLocationId").is_not_null())
@@ -150,5 +171,5 @@ print(result.collect(streaming=True))
 #         )
 #     )
 #     .select(pl.len().alias("non_null_count"))
-#     .collect(streaming=True)
+#     .collect(**collect_args)
 # )
