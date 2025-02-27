@@ -26,7 +26,7 @@ else:
 
 # Lazy load the Parquet file (does NOT load into memory)
 df = pl.scan_parquet("../data/nyc_yellow_taxi_parquet/*")
-#
+
 # Count total rows without loading the full dataset
 row_count = df.select(pl.len()).collect(**collect_args)
 
