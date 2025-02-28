@@ -537,13 +537,12 @@ A whole 2x faster! 🚀 Remember running on _1.5 Billion_ rows of data.. well ki
 if we ignore all the stuff we said above about lazy loading and query
 optimising, but you get the picture.
 
-[! NOTE]
-_**Disclaimer**_ Now, I have a confession to make. For the final large query,
-this was actaully run using rhe streaming API, i.e `result.collect(streaming=True)`.
-Why you might ask, well, when using just the GPU engine the intermediate RAM
-usage went through the roof and ultimately the jobs were killed. There are some
-SO posts that might be related but I essentially think this is down to the VRAM
-limits and the current state of the GPU engine does not support streaming:
+> [! NOTE] > _**Disclaimer**_ Now, I have a confession to make. For the final large query,
+> this was actaully run using rhe streaming API, i.e `result.collect(streaming=True)`.
+> Why you might ask, well, when using just the GPU engine the intermediate RAM
+> usage went through the roof and ultimately the jobs were killed. There are some
+> SO posts that might be related but I essentially think this is down to the VRAM
+> limits and the current state of the GPU engine does not support streaming:
 
 ```python
 # https://github.com/pola-rs/polars/blob/69612d46f3335d4c54033f27ecd8fa4be6fa40c2/py-polars/polars/lazyframe/frame.py#L2015
@@ -558,10 +557,12 @@ shouldn't look past the _huge_ speed up offered by the GPU. What this could mean
 in practise is for large queries, if you have many cores available, you could be
 just better off resolving on the CPU and using the streaming API.
 
-[! NOTE]
-Further tests would be needed to see if there is an argument for distributed
-system, i.e. Spark, Daft, Ballista etc if the overhead set up and data movement
-is manageable.
+> [! NOTE]
+> Further tests would be needed to see if there is an argument for distributed
+> system, i.e. [Spark](https://github.com/apache/spark), [Daft](https://github.com/Eventual-Inc/Daft), [Ballista](https://github.com/apache/datafusion-ballista) etc if the overhead set up and data movement
+> is manageable.[^2]
+
+[^2]: Double side-note. Ballista and Daft are written in Rust 🦀 and are columnar first engines
 
 ### Pure `cuDF`
 
