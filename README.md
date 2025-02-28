@@ -537,7 +537,9 @@ A whole 2x faster! 🚀 Remember running on _1.5 Billion_ rows of data.. well ki
 if we ignore all the stuff we said above about lazy loading and query
 optimising, but you get the picture.
 
-> [!NOTE] > _**Disclaimer**_ Now, I have a confession to make. For the final large query,
+> [!NOTE]
+>
+> _**Disclaimer**_ Now, I have a confession to make. For the final large query,
 > this was actaully run using rhe streaming API, i.e `result.collect(streaming=True)`.
 > Why you might ask, well, when using just the GPU engine the intermediate RAM
 > usage went through the roof and ultimately the jobs were killed. There are some
@@ -558,6 +560,7 @@ in practise is for large queries, if you have many cores available, you could be
 just better off resolving on the CPU and using the streaming API.
 
 > [!NOTE]
+>
 > Further tests would be needed to see if there is an argument for distributed
 > system, i.e. [Spark](https://github.com/apache/spark), [Daft](https://github.com/Eventual-Inc/Daft), [Ballista](https://github.com/apache/datafusion-ballista) etc if the overhead set up and data movement
 > is manageable.[^2]
