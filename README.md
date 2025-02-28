@@ -525,9 +525,43 @@ Remember that the GPU engine and streaming mode are considered unstable features
 But, running on an **NVIDIA 4090 with 24GB VRAM GPU** we can still run all
 queires and crucially we run `src/main.py` in... _drum roll please_ 🥁
 
-```console
+![](screencast.git)
 
+```console
+real    1m7.322s
+user    5m16.966s
+sys     1m18.575s
 ```
+
+A whole 2x faster! 🚀 Remember running on _1.5 Billion_ rows of data.. well kinda
+if we ignore all the stuff we said above about lazy loading and query
+optimising, but you get the picture.
+
+[!!! Note]
+_**Disclaimer**_ Now, I have a confession to make. For the final large query,
+this was actaully run using rhe streaming API, i.e `result.collect(streaming=True)`.
+Why you might ask, well, when using just the GPU engine the intermediate RAM
+usage went through the roof and ultimately the jobs were killed. There are some
+SO posts that might be related but I essentially think this is down to the VRAM
+limits and the current state of the GPU engine does not support streaming:
+
+```python
+# https://github.com/pola-rs/polars/blob/69612d46f3335d4c54033f27ecd8fa4be6fa40c2/py-polars/polars/lazyframe/frame.py#L2015
+        if (streaming or background or new_streaming) and is_gpu:
+            issue_warning(
+                "GPU engine does not support streaming or background collection, "
+                "disabling GPU engine.",
+```
+
+So, with that in mind, for the last query I leveraged the streaming API but we
+shouldn't look past the _huge_ speed up offered by the GPU. What this could mean
+in practise is for large queries, if you have many cores available, you could be
+just better off resolving on the CPU and using the streaming API.
+
+[!!! Note]
+Further tests would be needed to see if there is an argument for distributed
+system, i.e. Spark, Daft, Ballista etc if the overhead set up and data movement
+is manageable.
 
 ### Pure `cuDF`
 
@@ -535,12 +569,54 @@ For completeness I used ChatGPT to rewrite the `polars` queires in `src/main.py`
 to be "pure" `cuDF` which can be found in `src/cudf.py`. Running that file on
 the GPU box we get:
 
+<!-- TODO: Address error below -->
+
 ```console
 
+/home/tarek/big-bear-demo/.venv/lib/python3.10/site-packages/cudf/utils/_ptxcompiler.py:64: UserWarning: Error getting driver and runtime versions:
+
+stdout:
+
+stderr:
+
+Traceback (most recent call last):
+  File "<string>", line 7, in <module>
+  File "/home/tarek/big-bear-demo/.venv/lib/python3.10/site-packages/numba_cuda/numba/cuda/cudadrv/runtime.py", line 111, in get_version
+    self.cudaRuntimeGetVersion(ctypes.byref(rtver))
+  File "/home/tarek/big-bear-demo/.venv/lib/python3.10/site-packages/numba_cuda/numba/cuda/cudadrv/runtime.py", line 65, in __getattr__
+    self._initialize()
+  File "/home/tarek/big-bear-demo/.venv/lib/python3.10/site-packages/numba_cuda/numba/cuda/cudadrv/runtime.py", line 51, in _initialize
+    self.lib = open_cudalib('cudart')
+  File "/home/tarek/big-bear-demo/.venv/lib/python3.10/site-packages/numba_cuda/numba/cuda/cudadrv/libs.py", line 84, in open_cudalib
+    return ctypes.CDLL(path)
+  File "/home/tarek/.local/share/uv/python/cpython-3.10.15-linux-x86_64-gnu/lib/python3.10/ctypes/__init__.py", line 374, in __init__
+    self._handle = _dlopen(self._name, mode)
+OSError: libcudart.so: cannot open shared object file: No such file or directory
+
+
+Not patching Numba
+  warnings.warn(msg, UserWarning)
+Traceback (most recent call last):
+  File "/home/tarek/big-bear-demo/src/pure-cudf.py", line 5, in <module>
+    import cudf
+  File "/home/tarek/big-bear-demo/.venv/lib/python3.10/site-packages/cudf/__init__.py", line 20, in <module>
+    validate_setup()
+  File "/home/tarek/big-bear-demo/.venv/lib/python3.10/site-packages/cudf/utils/gpu_utils.py", line 96, in validate_setup
+    cuda_runtime_version = runtimeGetVersion()
+  File "/home/tarek/big-bear-demo/.venv/lib/python3.10/site-packages/rmm/_cuda/gpu.py", line 86, in runtimeGetVersion
+    status, version = runtime.getLocalRuntimeVersion()
+  File "cuda/bindings/runtime.pyx", line 31996, in cuda.bindings.runtime.getLocalRuntimeVersion
+  File "cuda/bindings/cyruntime.pyx", line 1225, in cuda.bindings.cyruntime.getLocalRuntimeVersion
+  File "cuda/bindings/_lib/cyruntime/cyruntime.pyx", line 4005, in cuda.bindings._lib.cyruntime.cyruntime._getLocalRuntimeVersion
+RuntimeError: Failed to dlopen libcudart.so.12
 ```
 
-This was to be expected since we are doing no optimisations in terms of the
-query plan and therefore eagerly loading data into VRAM.
+While I was expecting an error, it's not what I was after. The above needs to be
+addressed.
+
+What I was expecting is that we get an OOM error. This is to be expected since
+we are doing no optimisations in terms of the query plan and therefore eagerly
+loading data into VRAM.
 
 ## **Key Takeaways**
 
@@ -550,6 +626,14 @@ query plan and therefore eagerly loading data into VRAM.
 | **Top pickup locations**   | GroupBy pushdown, column pruning |
 | **Daily revenue for 2016** | Date filtering pushdown          |
 | **Find longest trips**     | Filter + sort optimisation       |
+
+When using just GPU, i.e. `collect(engine="gpu")` we are not taking full
+advantage of another piece of the `polars` magic which is the streaming API.
+
+Although the GPU engine is super fast, because it does not allow for out-of-core
+operations, i.e. larger than RAM and thus data is not chunked, you will see an
+explosion of the RAM usage is only using the GPU. Whereas for the streaming API,
+RAM usage remains fairly constant throughout.
 
 ## Troubleshooting
 
@@ -563,7 +647,7 @@ is not surprising considering we have:
 
 ```console
 ls data/nyc_yellow_taxi_parquet/* | wc
-2222
+   2713    2713  364095
 ```
 
 So, here are some steps you can take:
@@ -590,8 +674,6 @@ So, here are some steps you can take:
    evaluation, ensure that your query operations are structured in a way that
    doesn’t require opening all files at once. If possible, trigger operations in
    batches or use streaming modes if available.
-
----
 
 ```bash
 NVIDIA GPU detected, using cuDF for GPU acceleration.
@@ -620,5 +702,3 @@ to access `cudf.read_parquet` and other cuDF functions.
 
 Remember, file naming is important in Python to avoid such circular
 dependencies.
-
----
