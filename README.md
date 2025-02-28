@@ -525,7 +525,7 @@ Remember that the GPU engine and streaming mode are considered unstable features
 But, running on an **NVIDIA 4090 with 24GB VRAM GPU** we can still run all
 queires and crucially we run `src/main.py` in... _drum roll please_ 🥁
 
-![](screencast.git)
+![](session.gif)
 
 ```console
 real    1m7.322s
@@ -537,7 +537,7 @@ A whole 2x faster! 🚀 Remember running on _1.5 Billion_ rows of data.. well ki
 if we ignore all the stuff we said above about lazy loading and query
 optimising, but you get the picture.
 
-[!!! Note]
+[! NOTE]
 _**Disclaimer**_ Now, I have a confession to make. For the final large query,
 this was actaully run using rhe streaming API, i.e `result.collect(streaming=True)`.
 Why you might ask, well, when using just the GPU engine the intermediate RAM
@@ -558,7 +558,7 @@ shouldn't look past the _huge_ speed up offered by the GPU. What this could mean
 in practise is for large queries, if you have many cores available, you could be
 just better off resolving on the CPU and using the streaming API.
 
-[!!! Note]
+[! NOTE]
 Further tests would be needed to see if there is an argument for distributed
 system, i.e. Spark, Daft, Ballista etc if the overhead set up and data movement
 is manageable.
