@@ -565,7 +565,7 @@ just better off resolving on the CPU and using the streaming API.
 > system, i.e. [Spark](https://github.com/apache/spark), [Daft](https://github.com/Eventual-Inc/Daft), [Ballista](https://github.com/apache/datafusion-ballista) etc if the overhead set up and data movement
 > is manageable.[^2]
 
-[^2]: Double side-note. Ballista and Daft are written in Rust 🦀 and are columnar first engines
+[^2]: Double side-note. Ballista and Daft are written in Rust 🦀 and are columnar first engines, unlike Spark written in Scala using the JVM and is a row-first engine, _eww_.
 
 ### Pure `cuDF`
 
