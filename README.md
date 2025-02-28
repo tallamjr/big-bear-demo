@@ -615,8 +615,11 @@ Traceback (most recent call last):
 RuntimeError: Failed to dlopen libcudart.so.12
 ```
 
-While I was expecting an error, it's not what I was after. The above needs to be
-addressed.
+> [!IMPORTANT]
+>
+> Perhaps best to ignore the above for now...
+> While I was expecting an error, it's not what I was after. The above needs to be
+> addressed.
 
 What I was expecting is that we get an OOM error. This is to be expected since
 we are doing no optimisations in terms of the query plan and therefore eagerly
