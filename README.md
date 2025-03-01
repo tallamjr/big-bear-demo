@@ -56,7 +56,7 @@ To showcase Polars' **lazy execution, query planning, and optimisation** we will
 look at the **50GB (compressed[^1]) NYC Taxi dataset (~1.5 billion rows)** and present how to
 efficiently query a larger than RAM dataset on a **32GB RAM laptop**.
 
-[1^]: Total uncompressed size: 62.59 GiB, calculated with `data/stats.py`
+[^1]: Total uncompressed size: 62.59 GiB, calculated with `data/stats.py`
 
 For this we will:
 
