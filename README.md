@@ -53,8 +53,10 @@ a Query Plan and Query optimiser.
 <!-- TODO: A more detailed history lesson will follow but let's get on with the show. -->
 
 To showcase Polars' **lazy execution, query planning, and optimisation** we will
-look at the **50GB NYC Taxi dataset (~1.5 billion rows)** and present how to
+look at the **50GB (compressed[^1]) NYC Taxi dataset (~1.5 billion rows)** and present how to
 efficiently query a larger than RAM dataset on a **32GB RAM laptop**.
+
+[1^]: Total uncompressed size: 62.59 GiB, calculated with `data/stats.py`
 
 For this we will:
 
