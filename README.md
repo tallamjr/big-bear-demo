@@ -473,7 +473,7 @@ Yeah Ok, that's cool and all but doesn't that all go about the window when I
 have a beefy GPU sitting here?
 
 Well, the go-to DataFrame library at the moment for running queries is `cuDF`
-developed by the RAPIDS team at NVIDIA[^1].
+developed by the RAPIDS team at NVIDIA[^2].
 
 The main issue with `cuDF` even though it is indeed _blazingly_ fast and allows
 for massive parallelism, it **does not** have an inbuilt optimiser or query
@@ -482,7 +482,7 @@ into VRAM.
 
 Now with what we saw above, that just seems silly not to have one right?
 
-[^1]: We are only really considering NVIDIA chips, for reasons. Good reasons.
+[^2]: We are only really considering NVIDIA chips, for reasons. Good reasons.
 
 `cuDF` is primarily designed for eager execution—much like `pandas`, but on the
 GPU, so it doesn't include a built‑in lazy query planning engine like `polars`
@@ -565,9 +565,9 @@ just better off resolving on the CPU and using the streaming API.
 >
 > Further tests would be needed to see if there is an argument for distributed
 > system, i.e. [Spark](https://github.com/apache/spark), [Daft](https://github.com/Eventual-Inc/Daft), [Ballista](https://github.com/apache/datafusion-ballista) etc if the overhead set up and data movement
-> is manageable.[^2]
+> is manageable.[^3]
 
-[^2]: Double side-note. Ballista and Daft are written in Rust 🦀 and are columnar first engines, unlike Spark written in Scala using the JVM and is a row-first engine, _eww_.
+[^3]: Double side-note. Ballista and Daft are written in Rust 🦀 and are columnar first engines, unlike Spark written in Scala using the JVM and is a row-first engine, _eww_.
 
 ### Pure `cuDF`
 
