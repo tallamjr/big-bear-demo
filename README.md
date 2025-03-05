@@ -11,6 +11,7 @@
     * [What This Query Demonstrates](#what-this-query-demonstrates)
 * [Here Come the Hotstepper: `cuDF`](#here-come-the-hotstepper-cudf)
   * [Pure `cuDF`](#pure-cudf)
+* [Let's Get _GeoSpatial_](#lets-get-_geospatial)
 * [**Key Takeaways**](#key-takeaways)
 * [Troubleshooting](#troubleshooting)
 
@@ -527,7 +528,7 @@ Remember that the GPU engine and streaming mode are considered unstable features
 But, running on an **NVIDIA 4090 with 24GB VRAM GPU** we can still run all
 queires and crucially we run `src/main.py` in... _drum roll please_ 🥁
 
-![](session.gif)
+![](./.assets/session.gif)
 
 ```console
 real    1m7.322s
@@ -626,6 +627,12 @@ RuntimeError: Failed to dlopen libcudart.so.12
 What I was expecting is that we get an OOM error. This is to be expected since
 we are doing no optimisations in terms of the query plan and therefore eagerly
 loading data into VRAM.
+
+## Let's Get _GeoSpatial_
+
+```bash
+brew install h3
+```
 
 ## **Key Takeaways**
 
