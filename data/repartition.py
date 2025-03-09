@@ -4,7 +4,7 @@ from datetime import datetime
 import polars as pl
 
 # Process years 2010 to 2018 (inclusive)
-for year in range(2012, 2019):
+for year in range(2009, 2019):
     df = pl.scan_parquet("./nyc_yellow_taxi_parquet/part-*")
     print(f"Filtering: {year}...")
 
