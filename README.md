@@ -1,4 +1,4 @@
-# 🐻‍❄️ A Polar Bear Showcase
+# 🐻‍❄️ A Big Bear Takes on the Big Apple 🍎
 
 <!-- mtoc-start -->
 
@@ -16,6 +16,16 @@
 * [Troubleshooting](#troubleshooting)
 
 <!-- mtoc-end -->
+
+> [!Warning] **This little "oh let me showcase the power of a query optimiser to
+> people" somehow accidentally turned into quite an interesting side-project and
+> so I am updating this as I go along. Local "big-data" processing has come a
+> long way since I first starting look large scale data querying at the start of
+> my PhD and it's incredible what can be done just on a laptop these days. As
+> such, I plan to turn this into a proper blog post with notes etc, but that
+> will come later. In the meantime, bear with me (\_whey, pun intended! 😉) as
+> this is very rough around the edges and will be updtated properly another
+> time**
 
 ## Overview
 
