@@ -25,11 +25,11 @@ if is_nvidia_gpu_available():
     collect_args["engine"] = "gpu"
     print("NVIDIA GPU detected, using GPU engine for collection.")
 else:
-    collect_args["streaming"] = True
+    collect_args["engine"] = "streaming"
     print("No NVIDIA GPU detected, using streaming mode for collection.")
 
 # Lazy load the Parquet file (does NOT load into memory)
-df = pl.scan_parquet("../data/nyc_yellow_taxi_parquet/*")
+df = pl.scan_parquet("./data/yellow.hive/**/*.parquet", hive_partitioning=True)
 
 # Count total rows without loading the full dataset
 row_count = df.select(pl.len()).collect(**collect_args)
@@ -166,14 +166,3 @@ print(f"OPTIMIZED Q-PLAN:\n {qplan}")
 result.show_graph(show=False, output_path="query-plan.png")
 
 print(result.collect(**collect_args))
-
-# print(
-#     df.filter(pl.col("puLocationId").is_not_null())
-#     .filter(
-#         pl.col("tpepPickupDateTime").is_between(
-#             datetime(2010, 1, 1), datetime(2018, 1, 1)
-#         )
-#     )
-#     .select(pl.len().alias("non_null_count"))
-#     .collect(**collect_args)
-# )
