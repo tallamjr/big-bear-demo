@@ -3,7 +3,7 @@ import glob
 import pyarrow.parquet as pq
 
 # Path pattern for your Parquet files (adjust as needed)
-file_pattern = "./nyc_yellow_taxi_parquet/*"
+file_pattern = "yellow/*"
 
 # Get all matching Parquet files
 parquet_files = glob.glob(file_pattern)

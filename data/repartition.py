@@ -1,25 +1,32 @@
-import gc
-from datetime import datetime
-
 import polars as pl
+from polars.io.partition import PartitionByKey
 
-# Process years 2010 to 2018 (inclusive)
-for year in range(2009, 2019):
-    df = pl.scan_parquet("./nyc_yellow_taxi_parquet/part-*")
-    print(f"Filtering: {year}...")
+df = pl.scan_parquet("./yellow/*", allow_missing_columns=True)
 
-    df = df.filter(
-        pl.col("tpepPickupDateTime").is_between(
-            datetime(year, 1, 1), datetime(year, 12, 31)
-        )
-    ).with_columns(
+df = (
+    df.with_columns(
         [
-            pl.col("tpepPickupDateTime").dt.year().alias("year"),
-            pl.col("tpepPickupDateTime").dt.month().alias("month"),
+            pl.col("Trip_Pickup_DateTime").str.strptime(
+                pl.Datetime, format="%Y-%m-%d %H:%M:%S"
+            ),
+            pl.col("Trip_Dropoff_DateTime").str.strptime(
+                pl.Datetime, format="%Y-%m-%d %H:%M:%S"
+            ),
         ]
     )
-
-    df.collect().write_parquet(file="hive", partition_by=["year", "month"])
-    del df
-    gc.collect()
-    print(f"Written Partition: {year}...")
+    .with_columns(
+        [
+            pl.col("Trip_Pickup_DateTime").dt.year().alias("year"),
+            pl.col("Trip_Pickup_DateTime").dt.month().alias("month"),
+        ]
+    )
+    .sink_parquet(
+        PartitionByKey(
+            "./yellow.hive/{key[0].name}={key[0].value}/{key[1].name}={key[1].value}/0000.parquet",
+            by=[pl.col("year"), pl.col("month")],
+            include_key=False,
+        ),
+        mkdir=True,
+        engine="streaming",
+    )
+)
