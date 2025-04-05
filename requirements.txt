@@ -1,5 +1,0 @@
-azure-storage-blob
-graphviz
-polars
-polars-h3
-h3
